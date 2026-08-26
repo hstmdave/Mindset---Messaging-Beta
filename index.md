@@ -9,8 +9,11 @@
         // passing hidden pre-chat values (use the exact Channel Variable names from Setup)
         // will need to set up a lot of these depending on values that CustEx wants mapped
         embeddedservice_bootstrap.prechatAPI.setHiddenPrechatFields({
-          "External_Conversation_Id": // set incoming value here,
-          "PreChat_URL": window.location.origin
+          	"External_Conversation_Id": replaceThisValue,  // Replace with corresponding variable from Mindset
+        	"PreChat_URL": window.location.origin,
+			"First_Name": replaceThisValue,  // Replace with corresponding variable from Mindset
+			"Last_Name": replaceThisValue,  // Replace with corresponding variable from Mindset
+			"User_Email": replaceThisValue,  // Replace with corresponding variable from Mindset
         });
     });
 
