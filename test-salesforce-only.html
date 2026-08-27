@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Salesforce handoff test harness</title>
+
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0; padding: 2rem; line-height: 1.5; color: #16325c;
+    }
+    .page { max-width: 52rem; margin: 0 auto; }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.05rem; margin-top: 2rem; }
+
+    .status {
+      padding: 0.6rem 0.9rem; border-radius: 4px; font-size: 0.9rem;
+      margin: 1rem 0; border-left: 3px solid #939393; background: #f3f6f9;
+    }
+    .status[data-state="ready"]  { border-left-color: #2e844a; background: #ebf7ee; }
+    .status[data-state="failed"] { border-left-color: #ba0517; background: #fdeceb; }
+
+    label { display: block; font-size: 0.8rem; font-weight: 600; margin-top: 0.7rem; }
+    input, textarea {
+      width: 100%; box-sizing: border-box; padding: 0.4rem 0.5rem;
+      border: 1px solid #c9c9c9; border-radius: 3px; font: inherit; font-size: 0.85rem;
+    }
+    textarea { min-height: 4.5rem; resize: vertical; }
+
+    button {
+      margin-top: 1rem; padding: 0.55rem 1.1rem; font: inherit; font-size: 0.9rem;
+      background: #0176d3; color: #fff; border: 0; border-radius: 4px; cursor: pointer;
+    }
+    button:disabled { background: #c9c9c9; cursor: not-allowed; }
+    button.secondary { background: #fff; color: #0176d3; border: 1px solid #0176d3; }
+
+    #log {
+      background: #061c3f; color: #b3d4ff; padding: 0.9rem; border-radius: 4px;
+      font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.78rem;
+      height: 18rem; overflow-y: auto; white-space: pre-wrap; margin-top: 0.6rem;
+    }
+    #log .hit  { color: #7ce8a4; font-weight: 600; }
+    #log .warn { color: #ffb75d; }
+    #log .err  { color: #ff9a94; }
+    #log .dim  { color: #6a89b8; }
+
+    table { border-collapse: collapse; width: 100%; font-size: 0.85rem; margin-top: 0.6rem; }
+    th, td { text-align: left; padding: 0.35rem 0.6rem; border-bottom: 1px solid #e5e5e5; }
+    code { background: #f3f6f9; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.85em; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Salesforce handoff test harness</h1>
+  <p>
+    No Mindset dependency. This exercises only the Salesforce side of the handoff,
+    so it runs today with nothing but a static file server. Its job is to settle
+    the API calls marked <em>unverified</em> in <code>README.md</code>.
+  </p>
+
+  <div class="status" id="status" data-state="loading">Loading Salesforce bootstrap&hellip;</div>
+
+  <h2>What this proves</h2>
+  <table>
+    <tr><th>Question</th><th>How you'll know</th></tr>
+    <tr>
+      <td><code>hideChatButtonOnLoad</code> suppresses the launcher</td>
+      <td>No Salesforce chat bubble appears on load. If one does, the setting name is wrong.</td>
+    </tr>
+    <tr>
+      <td><code>utilAPI.launchChat()</code> opens the window</td>
+      <td>Clicking <em>Launch</em> opens the chat. An error in the log means the method name is wrong.</td>
+    </tr>
+    <tr>
+      <td>Which lifecycle events are real</td>
+      <td>Every event that fires is logged in green with its actual name.</td>
+    </tr>
+    <tr>
+      <td>Hidden pre-chat fields land</td>
+      <td>Check the Messaging Session record in Salesforce after launching.</td>
+    </tr>
+  </table>
+
+  <h2>Routing data</h2>
+  <p style="font-size:0.85rem;">
+    Stands in for what the real integration sends: identity from your app session,
+    summary from the agent.
+  </p>
+
+  <label for="firstName">First_Name</label>
+  <input id="firstName" value="Test">
+
+  <label for="lastName">Last_Name</label>
+  <input id="lastName" value="Handoff">
+
+  <label for="email">User_Email</label>
+  <input id="email" value="test.handoff@example.com">
+
+  <label for="summary">Mindset_Summary <span style="font-weight:400">(needs registering in Setup first)</span></label>
+  <textarea id="summary">Customer cannot reset their password. Already tried the self-service reset link twice; the email never arrives. Verified their address is correct on file. Needs a human to check the account state.</textarea>
+
+  <label for="reason">Escalation_Reason <span style="font-weight:400">(needs registering in Setup first)</span></label>
+  <input id="reason" value="unresolved">
+
+  <button id="launch" disabled>Launch live chat</button>
+  <button id="clear" class="secondary" type="button">Clear log</button>
+
+  <h2>Event log</h2>
+  <div id="log"></div>
+
+</div>
+
+<script>
+  // ---------------------------------------------------------------------------
+  // Config -- same values as index.md / mindset-salesforce-handoff.js
+  // ---------------------------------------------------------------------------
+  var SF = {
+    orgId: '00DWL00000C6ZOy',
+    esDeveloperName: 'Mindset_Messaging_Beta',
+    siteUrl: 'https://healthstream--hstm.sandbox.my.site.com/ESWMindsetMessagingBeta1787680662848',
+    scrt2URL: 'https://healthstream--hstm.sandbox.my.salesforce-scrt.com',
+    language: 'en_US'
+  };
+
+  // Candidate event names. Whatever logs green is real; the rest can be deleted
+  // from CONVERSATION_END_EVENTS in mindset-salesforce-handoff.js.
+  var CANDIDATE_EVENTS = [
+    'onEmbeddedMessagingReady',
+    'onEmbeddedMessagingButtonCreated',
+    'onEmbeddedMessagingButtonClicked',
+    'onEmbeddedMessagingWindowMaximized',
+    'onEmbeddedMessagingWindowMinimized',
+    'onEmbeddedMessagingConversationOpened',
+    'onEmbeddedMessagingConversationStarted',
+    'onEmbeddedMessagingConversationEnded',
+    'onEmbeddedMessagingConversationClosed',
+    'onEmbeddedMessagingInviteAccepted',
+    'onEmbeddedMessagingInviteRejected'
+  ];
+
+  var logEl = document.getElementById('log');
+  var statusEl = document.getElementById('status');
+  var launchBtn = document.getElementById('launch');
+
+  function stamp() {
+    return new Date().toISOString().substr(11, 12);
+  }
+
+  function log(msg, cls) {
+    var line = document.createElement('div');
+    if (cls) line.className = cls;
+    line.textContent = stamp() + '  ' + msg;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function setStatus(text, state) {
+    statusEl.textContent = text;
+    statusEl.setAttribute('data-state', state);
+  }
+
+  document.getElementById('clear').onclick = function () { logEl.innerHTML = ''; };
+
+  // Surface anything the SDK throws that we would otherwise never see.
+  window.addEventListener('error', function (e) {
+    log('PAGE ERROR: ' + e.message, 'err');
+  });
+
+  // ---------------------------------------------------------------------------
+  // Listen for every candidate event BEFORE the bootstrap loads, or the ready
+  // event can fire before we are listening.
+  // ---------------------------------------------------------------------------
+  log('Listening for ' + CANDIDATE_EVENTS.length + ' candidate event names...', 'dim');
+
+  CANDIDATE_EVENTS.forEach(function (name) {
+    window.addEventListener(name, function (e) {
+      log('EVENT FIRED: ' + name, 'hit');
+      if (e && e.detail) {
+        try {
+          log('   detail: ' + JSON.stringify(e.detail), 'dim');
+        } catch (err) {
+          log('   detail: [not serializable]', 'dim');
+        }
+      }
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Boot Salesforce with the launcher hidden
+  // ---------------------------------------------------------------------------
+  window.addEventListener('onEmbeddedMessagingReady', function () {
+    setStatus('Salesforce ready. Launcher suppressed — no chat bubble should be visible.', 'ready');
+    launchBtn.disabled = false;
+
+    var boot = window.embeddedservice_bootstrap;
+    log('prechatAPI present:  ' + !!(boot && boot.prechatAPI), 'dim');
+    log('utilAPI present:     ' + !!(boot && boot.utilAPI), 'dim');
+    log('utilAPI.launchChat:  ' + (boot && boot.utilAPI && typeof boot.utilAPI.launchChat), 'dim');
+  }, { once: true });
+
+  var script = document.createElement('script');
+  script.src = SF.siteUrl + '/assets/js/bootstrap.min.js';
+
+  script.onload = function () {
+    log('bootstrap.min.js loaded', 'dim');
+    try {
+      var boot = window.embeddedservice_bootstrap;
+      boot.settings.language = SF.language;
+
+      // The setting under test.
+      boot.settings.hideChatButtonOnLoad = true;
+      log('Set hideChatButtonOnLoad = true (readback: ' +
+          boot.settings.hideChatButtonOnLoad + ')', 'dim');
+
+      boot.init(SF.orgId, SF.esDeveloperName, SF.siteUrl, { scrt2URL: SF.scrt2URL });
+      log('init() called', 'dim');
+    } catch (err) {
+      setStatus('Bootstrap threw during init: ' + err.message, 'failed');
+      log('INIT ERROR: ' + err.message, 'err');
+    }
+  };
+
+  script.onerror = function () {
+    setStatus('Could not load bootstrap.min.js. Most likely this origin is not ' +
+              'allowlisted on the Embedded Service Deployment, or you are not on ' +
+              'the network that can reach the sandbox.', 'failed');
+    log('SCRIPT LOAD FAILED: ' + script.src, 'err');
+    log('This origin: ' + window.location.origin, 'warn');
+  };
+
+  document.head.appendChild(script);
+
+  // ---------------------------------------------------------------------------
+  // Launch
+  // ---------------------------------------------------------------------------
+  launchBtn.onclick = function () {
+    var boot = window.embeddedservice_bootstrap;
+
+    var fields = {
+      External_Conversation_Id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
+      PreChat_URL: window.location.origin,
+      First_Name: document.getElementById('firstName').value,
+      Last_Name: document.getElementById('lastName').value,
+      User_Email: document.getElementById('email').value,
+      Mindset_Summary: document.getElementById('summary').value,
+      Escalation_Reason: document.getElementById('reason').value
+    };
+
+    try {
+      boot.prechatAPI.setHiddenPrechatFields(fields);
+      log('setHiddenPrechatFields() OK', 'hit');
+      log('   ' + JSON.stringify(fields, null, 2), 'dim');
+    } catch (err) {
+      log('setHiddenPrechatFields FAILED: ' + err.message, 'err');
+      return;
+    }
+
+    try {
+      var result = boot.utilAPI.launchChat();
+      log('launchChat() called, returned: ' + Object.prototype.toString.call(result), 'hit');
+
+      if (result && typeof result.then === 'function') {
+        result.then(function () {
+          log('launchChat() promise resolved — chat window open', 'hit');
+        }).catch(function (err) {
+          log('launchChat() promise rejected: ' + err, 'err');
+        });
+      }
+
+      launchBtn.disabled = true;
+    } catch (err) {
+      log('launchChat FAILED: ' + err.message, 'err');
+      log('If this says "not a function", the method name is wrong — inspect ' +
+          'window.embeddedservice_bootstrap.utilAPI in the console.', 'warn');
+    }
+  };
+</script>
+</body>
+</html>

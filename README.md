@@ -15,7 +15,8 @@ person, it opens the Salesforce Embedded Messaging chat and steps aside.
 |---|---|
 | `index.md` | The original Salesforce Embedded Messaging snippet. Left as-is; superseded by the JS below — see [Changes from `index.md`](#changes-from-indexmd). |
 | `mindset-salesforce-handoff.js` | The integration. Drop into the host app. |
-| `demo.html` | Runnable reference page wiring both widgets together. |
+| `demo.html` | Reference page wiring both widgets together. Needs the Mindset placeholders filled in before it will run. |
+| `test-salesforce-only.html` | Standalone Salesforce-side test harness. No Mindset dependency — runs today. |
 | `SALESFORCE-SETUP.md` | Declarative Salesforce work that must exist first. |
 
 ---
@@ -137,19 +138,55 @@ Marked honestly rather than presented as settled:
 |---|---|
 | `prechatAPI.setHiddenPrechatFields()` | **Confirmed** — already in use in `index.md` |
 | `onEmbeddedMessagingReady` | **Confirmed** — already in use in `index.md` |
-| `settings.hideChatButtonOnLoad` | **Unverified** |
-| `utilAPI.launchChat()` | **Unverified** |
-| `onEmbeddedMessagingConversationEnded` / `...Closed` | **Unverified** — name is a guess |
+| `siteUrl + /assets/js/bootstrap.min.js` | **Confirmed** — loads from the sandbox |
+| `settings.hideChatButtonOnLoad` | **Partly confirmed** — accepted as a settable property, reads back `true`. Whether it actually suppresses the launcher is still unproven (see CORS below). |
+| `boot.init(orgId, esDeveloperName, siteUrl, {scrt2URL})` | **Confirmed** — accepted without throwing |
+| `utilAPI.launchChat()` | **Unverified** — blocked by CORS |
+| `onEmbeddedMessagingConversationEnded` / `...Closed` | **Unverified** — name is a guess, blocked by CORS |
 
 The conversation-end event only controls whether the Mindset widget comes back
 after live chat, so a wrong name degrades gracefully rather than breaking the
 handoff.
 
-**To settle all of it in about two minutes:** load `demo.html` in the sandbox with
-`CONFIG.debug = true` (the default), escalate once, and end the chat. Every
-Salesforce lifecycle event that actually fires is logged to the console with its
-real name. Prune `CONVERSATION_END_EVENTS` to whatever you see, and drop the
-`DEBUG_WATCH_EVENTS` list once you have the answer.
+### Use `test-salesforce-only.html` to settle the rest
+
+`test-salesforce-only.html` is a standalone harness with **no Mindset dependency**
+— it needs nothing but a static file server, so it can be run long before the
+Mindset credentials exist. It listens for all eleven candidate lifecycle event
+names and logs, on-page, whichever ones actually fire. Serve the repo folder and
+open it:
+
+```
+python -m http.server 8765
+# then http://localhost:8765/test-salesforce-only.html
+```
+
+### Blocker: the origin must be allowlisted in Salesforce
+
+Running the harness from `http://localhost:8765` produces:
+
+```
+Access to XMLHttpRequest at 'https://healthstream--hstm.sandbox.my.salesforce-scrt.com/
+embeddedservice/v1/embedded-service-config?orgId=00DWL00000C6ZOy&...'
+from origin 'http://localhost:8765' has been blocked by CORS policy:
+No 'Access-Control-Allow-Origin' header is present on the requested resource.
+→ Uncaught (in promise) Error: Unable to load Embedded Messaging configuration.
+```
+
+The bootstrap script itself downloads fine and `init()` runs — the widget then
+fails fetching its own configuration, because the org does not recognise the
+origin. Nothing downstream of that point can be tested until an admin adds it.
+
+**This applies to every host, not just localhost.** GitHub Pages would hit the
+identical wall: `https://hstmdave.github.io` needs allowlisting too, as does
+whatever origin the real HealthStream app is served from. Worth adding all three
+at once rather than discovering it twice more.
+
+The exact Setup path could not be confirmed (`developer.salesforce.com` was
+returning 503 site-wide), so treat the naming as approximate — but the origin
+generally needs to be present in **Setup → CORS → Allowed Origins List**, and in
+the Embedded Service Deployment's own allowed-domains configuration. Dave will
+know which of the two this org actually enforces.
 
 ---
 

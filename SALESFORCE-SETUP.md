@@ -26,6 +26,41 @@ approach and should not change.
 
 ---
 
+## 1b. Allowlist the origins — do this first
+
+**Confirmed blocker, not a theoretical one.** Loading the widget from an origin
+the org does not recognise fails like this:
+
+```
+Access to XMLHttpRequest at '.../embeddedservice/v1/embedded-service-config?...'
+from origin 'http://localhost:8765' has been blocked by CORS policy:
+No 'Access-Control-Allow-Origin' header is present on the requested resource.
+→ Uncaught (in promise) Error: Unable to load Embedded Messaging configuration.
+```
+
+The bootstrap script downloads fine and `init()` runs; the widget then cannot
+fetch its own configuration and never becomes ready. Everything downstream —
+`launchChat()`, hidden pre-chat fields, the whole handoff — is untestable until
+this is fixed.
+
+Origins that need adding:
+
+| Origin | For |
+|---|---|
+| `http://localhost:8765` | Local development and `test-salesforce-only.html` |
+| `https://hstmdave.github.io` | If this repo is published via GitHub Pages |
+| The real HealthStream app origin | Production / staging |
+
+Add all of them at once — otherwise this gets rediscovered twice more.
+
+The exact Setup location could not be confirmed from the docs (Salesforce's
+developer site was returning 503), so treat this as approximate: the origin
+generally needs to be in **Setup → CORS → Allowed Origins List**, and the
+Embedded Service Deployment has its own allowed-domains configuration as well.
+Whichever this org enforces, both are quick.
+
+---
+
 ## 2. Custom fields on Messaging Session
 
 **Setup → Object Manager → Messaging Session → Fields & Relationships**
