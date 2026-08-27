@@ -70,6 +70,49 @@ Two constraints from the docs worth respecting:
 
 ---
 
+## Running it on GitHub Pages
+
+The live page is <https://hstmdave.github.io/Mindset---Messaging-Beta/>, served
+from `index.md`. It now loads the Mindset SDK, the handoff module, and a status
+panel that reports exactly which pieces are missing.
+
+Three values still have to be filled into `index.md` before the agent appears —
+they can only come from Mindset:
+
+| Placeholder | Where to get it |
+|---|---|
+| `MINDSET-SERVER-URL` | Mindset CS — the environment URL |
+| `YOUR-APP-UID` | Mindset CS |
+| `YOUR-AGENT-UID` | AMS → Manage → Agents. **Case-sensitive.** |
+
+### Anonymous access is mandatory here
+
+GitHub Pages is static hosting. It cannot hold a Mindset API key and cannot host
+the `/api/mindset/token` endpoint, so `fetchAuthentication` is not an option on
+this page — it uses anonymous access instead. Two things must be true in AMS or
+the agent will not load:
+
+1. **`hstmdave.github.io` safelisted for anonymous access.** Without it the SDK
+   fails with `SDK_ERR_1006`.
+2. **The agent set to Open access.** A Restricted agent with no accounts assigned
+   is reachable *only* through an agent session, and there is no backend here to
+   create one. This is the opposite of the recommended production default, and is
+   a property of this demo page, not a recommendation for the product build.
+
+The real embedded build should create an agent session server-side and pass the
+`agentSessionUid` — noting that the SDK takes it in the `agentUid` attribute,
+not a separate one.
+
+### Identity is self-reported on this page
+
+With no session, there is no authoritative source for the customer's name and
+email, so `allowAgentSuppliedIdentity` is switched on and the agent asks for them
+in conversation. Those values reach Salesforce unverified.
+
+That is a deliberate downgrade for a beta test page, not a change of principle.
+In the embedded build, identity comes from the host app's session and the agent
+supplies only the summary — see [Who supplies what](#who-supplies-what).
+
 ## Setup
 
 ### 1. Salesforce
@@ -177,10 +220,15 @@ The bootstrap script itself downloads fine and `init()` runs — the widget then
 fails fetching its own configuration, because the org does not recognise the
 origin. Nothing downstream of that point can be tested until an admin adds it.
 
-**This applies to every host, not just localhost.** GitHub Pages would hit the
-identical wall: `https://hstmdave.github.io` needs allowlisting too, as does
-whatever origin the real HealthStream app is served from. Worth adding all three
-at once rather than discovering it twice more.
+**`hstmdave.github.io` is already allowlisted** — the live Pages site boots
+Salesforce successfully (`embeddedservice_bootstrap.utilAPI` is present on
+`https://hstmdave.github.io/Mindset---Messaging-Beta/`). So this is a
+localhost-only problem, not a general one.
+
+That means you can either add `http://localhost:8765` to the allowlist for local
+development, or skip local entirely and test on the Pages site, which already
+works. The origin the real HealthStream app is served from will need adding when
+you get there.
 
 The exact Setup path could not be confirmed (`developer.salesforce.com` was
 returning 503 site-wide), so treat the naming as approximate — but the origin

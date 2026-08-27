@@ -66,6 +66,16 @@
       reason: 'Escalation_Reason'
     },
 
+    // When true, the escalation tool also accepts firstName / lastName / email
+    // as tool arguments.
+    //
+    // Only turn this on where there is genuinely no signed-in user to read from
+    // -- a static GitHub Pages demo, an anonymous-access agent. Identity that
+    // comes from an LLM is self-reported: the agent is repeating what the
+    // customer typed, and nothing has verified it. Anything supplied by the host
+    // app always wins over the agent's version.
+    allowAgentSuppliedIdentity: false,
+
     // Logs every Salesforce lifecycle event that actually fires. Leave this on
     // in the sandbox -- it is how you confirm the event names below are right.
     debug: true
@@ -210,6 +220,18 @@
 
   function buildPrechatFields(args) {
     var user = resolveUser() || {};
+
+    // On an anonymous page there is no session to read identity from, so the
+    // agent may have collected it in conversation. Fill gaps only -- never let
+    // the agent's version override a real signed-in user.
+    if (CONFIG.allowAgentSuppliedIdentity) {
+      user = {
+        firstName: user.firstName || args.firstName,
+        lastName: user.lastName || args.lastName,
+        email: user.email || args.email
+      };
+    }
+
     var names = CONFIG.prechatFields;
     var fields = {};
 
@@ -351,6 +373,45 @@
       return;
     }
 
+    var toolProperties = {
+      summary: {
+        type: 'string',
+        description:
+          'A concise summary of the customer\'s issue and everything ' +
+          'already tried, written for a human representative who has not ' +
+          'seen this conversation. Include product area and any ' +
+          'identifiers the customer gave you.'
+      },
+      reason: {
+        type: 'string',
+        description:
+          'Why this is being escalated. One of: customer_requested, ' +
+          'unresolved, out_of_scope, complaint, urgent.'
+      }
+    };
+
+    var toolRequired = ['summary'];
+
+    // Anonymous pages only -- see CONFIG.allowAgentSuppliedIdentity.
+    if (CONFIG.allowAgentSuppliedIdentity) {
+      toolProperties.firstName = {
+        type: 'string',
+        description: 'The customer\'s first name, as they gave it to you.'
+      };
+      toolProperties.lastName = {
+        type: 'string',
+        description: 'The customer\'s last name, as they gave it to you.'
+      };
+      toolProperties.email = {
+        type: 'string',
+        description:
+          'The customer\'s email address, exactly as they typed it. Ask for ' +
+          'it before escalating if you do not have it. Never guess or ' +
+          'construct an address from their name.'
+      };
+      toolRequired = ['summary', 'email'];
+    }
+
     agentEl.setPageTools([
       {
         name: 'escalate_to_live_agent',
@@ -365,23 +426,8 @@
         completedDescription: 'Connected to support',
         parameters: {
           type: 'object',
-          properties: {
-            summary: {
-              type: 'string',
-              description:
-                'A concise summary of the customer\'s issue and everything ' +
-                'already tried, written for a human representative who has not ' +
-                'seen this conversation. Include product area and any ' +
-                'identifiers the customer gave you.'
-            },
-            reason: {
-              type: 'string',
-              description:
-                'Why this is being escalated. One of: customer_requested, ' +
-                'unresolved, out_of_scope, complaint, urgent.'
-            }
-          },
-          required: ['summary']
+          properties: toolProperties,
+          required: toolRequired
         },
         handler: function (args) {
           return handoff(args);
@@ -428,9 +474,10 @@
       });
     }
 
-    if (!state.user && !state.getUser) {
-      warn('No user supplied. First_Name / Last_Name / User_Email will be ' +
-           'empty and the representative will see an anonymous chat.');
+    if (!state.user && !state.getUser && !CONFIG.allowAgentSuppliedIdentity) {
+      warn('No user supplied and allowAgentSuppliedIdentity is off. ' +
+           'First_Name / Last_Name / User_Email will be empty and the ' +
+           'representative will see an anonymous chat.');
     }
 
     // Boot Salesforce now so the customer is not waiting on a script download at
