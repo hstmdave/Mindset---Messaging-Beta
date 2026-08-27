@@ -76,10 +76,15 @@
     </p>
 
     <div class="note">
-      <strong>Before this runs:</strong> fill in the four Mindset placeholders in
-      the script block below, and register <code>Mindset_Summary</code> and
-      <code>Escalation_Reason</code> as Custom Parameters in Salesforce Setup.
-      See <code>README.md</code> and <code>SALESFORCE-SETUP.md</code>.
+      <strong>This page needs a backend.</strong> Unlike <code>index.md</code>, it
+      uses the authenticated flow, so <code>/api/mindset/token</code> must exist
+      and return an <code>authToken</code>. That endpoint cannot live on GitHub
+      Pages &mdash; run this one from the real application. For a static host, use
+      the anonymous setup in <code>index.md</code> instead.
+      <br><br>
+      Also register <code>Mindset_Summary</code> and <code>Escalation_Reason</code>
+      as Custom Parameters in Salesforce Setup first &mdash; see
+      <code>SALESFORCE-SETUP.md</code>.
     </div>
 
     <h2>Testing the handoff</h2>
@@ -103,11 +108,11 @@
 
   <!-- The Mindset agent. Wrapper is what gets hidden during handoff. -->
   <div id="mindset-wrapper">
-    <mindset-agent agentUid="YOUR-AGENT-UID"></mindset-agent>
+    <mindset-agent agentUid="HCwuUNFTkBSYIo0WvUlG"></mindset-agent>
   </div>
 
-  <!-- 1. Mindset SDK 3 -->
-  <script src="MINDSET-SERVER-URL/mindset-sdk3.umd.js"></script>
+  <!-- 1. Mindset SDK 3 — prod4 US-West -->
+  <script src="https://mindset-prod4-usw-embedded-sdk-v3.web.app/mindset-sdk3.umd.js"></script>
 
   <!-- 2. The handoff integration -->
   <script src="mindset-salesforce-handoff.js"></script>
@@ -134,7 +139,8 @@
     // The API key must never reach the browser.
     // -------------------------------------------------------------------------
     mindset.init({
-      appUid: 'YOUR-APP-UID',
+      appUid: 'healthstream',
+      enableVoice: true,
       fetchAuthentication: async function () {
         const res = await fetch('/api/mindset/token', { credentials: 'include' });
         const data = await res.json();

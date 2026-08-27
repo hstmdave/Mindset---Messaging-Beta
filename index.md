@@ -11,7 +11,10 @@ a summary to send. The previous inline snippet is preserved in git history.
 <div id="status-panel">Checking…</div>
 
 <div id="mindset-wrapper">
-  <mindset-agent agentUid="YOUR-AGENT-UID"></mindset-agent>
+  <mindset-agent
+    agentUid="HCwuUNFTkBSYIo0WvUlG"
+    style="width: 100%; height: 600px; display: block; background-color: rgb(255, 255, 255);">
+  </mindset-agent>
 </div>
 
 <p>
@@ -34,15 +37,13 @@ a summary to send. The previous inline snippet is preserved in git history.
 #status-panel[data-state="ok"]   { border-left-color: #2e844a; background: #ebf7ee; }
 #status-panel[data-state="warn"] { border-left-color: #dd7a01; background: #fef5e7; }
 
+/* Inline embed, matching the 600px block sizing supplied with the agent
+   snippet — the agent sits in the page flow rather than floating in a corner. */
 #mindset-wrapper {
-  position: fixed;
-  bottom: 1rem;
-  right: 1rem;
-  width: 24rem;
-  max-width: calc(100vw - 2rem);
-  height: 32rem;
-  max-height: calc(100vh - 2rem);
-  z-index: 100;
+  margin: 1.5rem 0;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  overflow: hidden;
   transition: opacity 0.2s ease;
 }
 
@@ -53,19 +54,14 @@ a summary to send. The previous inline snippet is preserved in git history.
   visibility: hidden;
   opacity: 0;
   pointer-events: none;
+  height: 0;
+  margin: 0;
+  border-width: 0;
 }
-
-mindset-agent { width: 100%; height: 100%; }
 </style>
 
-<!-- ==========================================================================
-     Mindset SDK 3
-
-     Replace MINDSET-SERVER-URL with the environment URL from Mindset CS, and
-     YOUR-AGENT-UID above / YOUR-APP-UID below with the values from AMS.
-     UIDs are case-sensitive — copy and paste them, never retype.
-     ========================================================================== -->
-<script src="MINDSET-SERVER-URL/mindset-sdk3.umd.js"></script>
+<!-- Mindset SDK 3 — prod4 US-West environment -->
+<script src="https://mindset-prod4-usw-embedded-sdk-v3.web.app/mindset-sdk3.umd.js"></script>
 
 <script src="./mindset-salesforce-handoff.js"></script>
 
@@ -94,7 +90,12 @@ mindset-agent { width: 100%; height: 100%; }
 
   if (mindsetLoaded) {
     window.mindset.init({
-      appUid: 'YOUR-APP-UID'
+      appUid: 'healthstream',
+
+      // Boolean, not the string 'true' — the docs type this as a boolean
+      // defaulting to false. A non-empty string is truthy so either happens to
+      // work, but the boolean is what the SDK expects.
+      enableVoice: true
 
       // No fetchAuthentication — this page uses anonymous access, because a
       // static site cannot hold a Mindset API key or host a token endpoint.
@@ -137,12 +138,14 @@ mindset-agent { width: 100%; height: 100%; }
 
     if (!sdk) {
       lines.push('');
-      lines.push('The Mindset SDK did not load. Replace MINDSET-SERVER-URL in');
-      lines.push('index.md with the environment URL from Mindset CS.');
-    } else if (!configured) {
+      lines.push('The SDK script did not load from');
+      lines.push('mindset-prod4-usw-embedded-sdk-v3.web.app — check the network tab.');
+    } else if (!upgraded) {
       lines.push('');
-      lines.push('SDK loaded but still on placeholder UIDs. Fill in YOUR-APP-UID');
-      lines.push('and YOUR-AGENT-UID from AMS.');
+      lines.push('SDK loaded but the agent did not mount. The likeliest cause is');
+      lines.push('anonymous access: hstmdave.github.io must be safelisted in AMS');
+      lines.push('(otherwise SDK_ERR_1006), and the agent must be set to Open');
+      lines.push('access. Check the console for an SDK_ERR_ code.');
     }
 
     panel.textContent = lines.join('\n');

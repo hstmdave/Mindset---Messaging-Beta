@@ -76,14 +76,23 @@ The live page is <https://hstmdave.github.io/Mindset---Messaging-Beta/>, served
 from `index.md`. It now loads the Mindset SDK, the handoff module, and a status
 panel that reports exactly which pieces are missing.
 
-Three values still have to be filled into `index.md` before the agent appears —
-they can only come from Mindset:
+The Mindset values are filled in:
 
-| Placeholder | Where to get it |
+| Value | Setting |
 |---|---|
-| `MINDSET-SERVER-URL` | Mindset CS — the environment URL |
-| `YOUR-APP-UID` | Mindset CS |
-| `YOUR-AGENT-UID` | AMS → Manage → Agents. **Case-sensitive.** |
+| SDK | `https://mindset-prod4-usw-embedded-sdk-v3.web.app/mindset-sdk3.umd.js` |
+| `appUid` | `healthstream` |
+| `agentUid` | `HCwuUNFTkBSYIo0WvUlG` |
+| `enableVoice` | `true` |
+
+The agent is embedded inline at 600px rather than as a floating corner widget,
+and is hidden (height collapsed) while the Salesforce chat is open.
+
+One note on `enableVoice`: the docs type it as a boolean defaulting to `false`,
+so it is set here as `true` rather than the string `'true'`. Either works — a
+non-empty string is truthy — but the boolean is what the SDK expects. Voice is
+also unsupported in Firefox, and in an iframe needs `allow="microphone"` or it
+fails in Safari.
 
 ### Anonymous access is mandatory here
 
