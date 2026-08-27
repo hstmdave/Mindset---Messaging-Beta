@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mindset -&gt; Salesforce Live Agent Handoff</title>
+
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 2rem;
+      line-height: 1.5;
+      color: #16325c;
+    }
+
+    .page {
+      max-width: 46rem;
+      margin: 0 auto;
+    }
+
+    .note {
+      background: #f3f6f9;
+      border-left: 3px solid #0176d3;
+      padding: 0.75rem 1rem;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+
+    #mindset-wrapper {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      width: 24rem;
+      max-width: calc(100vw - 2rem);
+      height: 32rem;
+      max-height: calc(100vh - 2rem);
+      z-index: 100;
+    }
+
+    /*
+      The handoff. mindset-salesforce-handoff.js sets data-handoff-hidden on this
+      wrapper when the Salesforce chat opens, and removes it when the live
+      conversation ends. Hiding the wrapper rather than the <mindset-agent>
+      custom element keeps us clear of the SDK's shadow DOM.
+
+      visibility+opacity rather than display:none so the agent keeps its state
+      and its thread is intact when the customer comes back from live chat.
+    */
+    #mindset-wrapper[data-handoff-hidden] {
+      visibility: hidden;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #mindset-wrapper {
+      transition: opacity 0.2s ease;
+    }
+
+    mindset-agent {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="page">
+    <h1>Mindset &rarr; Salesforce live agent handoff</h1>
+
+    <p>
+      Reference page for the Mindset Messaging Beta. The Mindset agent is the only
+      chat visible on load. When the agent decides the customer needs a human, it
+      calls its <code>escalate_to_live_agent</code> page tool, which opens the
+      Salesforce Embedded Messaging chat and hides the Mindset widget.
+    </p>
+
+    <div class="note">
+      <strong>Before this runs:</strong> fill in the four Mindset placeholders in
+      the script block below, and register <code>Mindset_Summary</code> and
+      <code>Escalation_Reason</code> as Custom Parameters in Salesforce Setup.
+      See <code>README.md</code> and <code>SALESFORCE-SETUP.md</code>.
+    </div>
+
+    <h2>Testing the handoff</h2>
+    <ol>
+      <li>Open this page with the browser console visible.</li>
+      <li>Tell the agent something it cannot resolve, or just ask for a person.</li>
+      <li>The Salesforce chat should open and the Mindset widget should disappear.</li>
+      <li>Check the Messaging Session record in Salesforce &mdash; the custom
+        fields should carry the name, email and the AI-written summary.</li>
+    </ol>
+
+    <p>
+      <button type="button" onclick="MindsetSalesforceHandoff.handoff({
+        summary: 'Manual test escalation from demo.html.',
+        reason: 'customer_requested'
+      })">
+        Trigger handoff manually (bypasses the agent)
+      </button>
+    </p>
+  </div>
+
+  <!-- The Mindset agent. Wrapper is what gets hidden during handoff. -->
+  <div id="mindset-wrapper">
+    <mindset-agent agentUid="YOUR-AGENT-UID"></mindset-agent>
+  </div>
+
+  <!-- 1. Mindset SDK 3 -->
+  <script src="MINDSET-SERVER-URL/mindset-sdk3.umd.js"></script>
+
+  <!-- 2. The handoff integration -->
+  <script src="mindset-salesforce-handoff.js"></script>
+
+  <script>
+    // -------------------------------------------------------------------------
+    // The signed-in user, from your application's session.
+    //
+    // This must come from the host app, not from the agent. The agent supplies
+    // the summary; the app supplies who the customer is. An LLM asked for an
+    // email address will happily invent a plausible one.
+    // -------------------------------------------------------------------------
+    var CURRENT_USER = {
+      firstName: 'REPLACE-FROM-YOUR-SESSION',
+      lastName: 'REPLACE-FROM-YOUR-SESSION',
+      email: 'REPLACE-FROM-YOUR-SESSION'
+    };
+
+    // -------------------------------------------------------------------------
+    // Mindset SDK init.
+    //
+    // fetchAuthentication must call YOUR backend, which holds the Mindset API
+    // key and calls POST /api/v1/appuid/{APP-UID}/sdkusers/auth server-side.
+    // The API key must never reach the browser.
+    // -------------------------------------------------------------------------
+    mindset.init({
+      appUid: 'YOUR-APP-UID',
+      fetchAuthentication: async function () {
+        const res = await fetch('/api/mindset/token', { credentials: 'include' });
+        const data = await res.json();
+
+        // Mindset's docs disagree with themselves here: the SDK 3 error
+        // reference says fetchAuthentication must resolve to { token }, while
+        // the published React sample returns the bare authToken string. Ship the
+        // object form; if you see SDK_ERR_1003 or SDK_ERR_1004 in the console,
+        // return data.authToken directly instead and raise it with Mindset CS.
+        return { token: data.authToken };
+      }
+    });
+
+    // -------------------------------------------------------------------------
+    // Wire up the handoff. This boots Salesforce silently (button hidden) and
+    // registers the escalation page tool once the agent fires mindset:agent-idle.
+    // -------------------------------------------------------------------------
+    MindsetSalesforceHandoff.init({
+      user: CURRENT_USER
+    });
+  </script>
+
+</body>
+</html>
