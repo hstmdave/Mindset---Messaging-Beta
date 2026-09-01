@@ -13,7 +13,8 @@ person, it opens the Salesforce Embedded Messaging chat and steps aside.
 
 | File | What it is |
 |---|---|
-| `index.md` | The original Salesforce Embedded Messaging snippet. Left as-is; superseded by the JS below — see [Changes from `index.md`](#changes-from-indexmd). |
+| `index.html` | Live GitHub Pages demo. The chat is the page; diagnostics hide behind the Ready chip. |
+| `index.md` | The original Salesforce Embedded Messaging snippet, plus the first Pages draft. Not the live page anymore — see [Changes from `index.md`](#changes-from-indexmd). |
 | `mindset-salesforce-handoff.js` | The integration. Drop into the host app. |
 | `demo.html` | Reference page wiring both widgets together. Needs the Mindset placeholders filled in before it will run. |
 | `test-salesforce-only.html` | Standalone Salesforce-side test harness. No Mindset dependency — runs today. |
@@ -73,8 +74,9 @@ Two constraints from the docs worth respecting:
 ## Running it on GitHub Pages
 
 The live page is <https://hstmdave.github.io/Mindset---Messaging-Beta/>, served
-from `index.md`. It now loads the Mindset SDK, the handoff module, and a status
-panel that reports exactly which pieces are missing.
+from `index.html` (`.nojekyll` so GitHub Pages does not wrap it in a theme).
+It loads the Mindset SDK, the handoff module, and a status chip that expands
+into the diagnostic checklist only when something is missing.
 
 The Mindset values are filled in:
 

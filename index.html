@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Support — Mindset to live agent</title>
+  <style>
+    :root {
+      --ink: #122033;
+      --muted: #5b6b7c;
+      --line: #e2e8ef;
+      --paper: #ffffff;
+      --page: #eef2f6;
+      --navy: #0b1f3a;
+      --blue: #0b6bcb;
+      --ok: #1f7a3f;
+      --ok-bg: #e8f6ed;
+      --warn: #b15d00;
+      --warn-bg: #fff4e5;
+      --shadow: 0 18px 50px rgba(11, 31, 58, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+    }
+
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 500px at 50% -120px, #d7e6f6 0%, transparent 60%),
+        var(--page);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.85rem 1.25rem;
+      background: var(--navy);
+      color: #fff;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #4da3ff, #0b6bcb);
+      flex: 0 0 auto;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+
+    .brand p {
+      margin: 0.1rem 0 0;
+      font-size: 0.75rem;
+      color: #b7c6d8;
+    }
+
+    .status-chip {
+      border: 0;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      border-radius: 999px;
+      padding: 0.35rem 0.7rem;
+      font: inherit;
+      font-size: 0.75rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      white-space: nowrap;
+    }
+
+    .status-chip:hover { background: rgba(255, 255, 255, 0.16); }
+
+    .status-chip .dot {
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 50%;
+      background: #c5d0dc;
+    }
+
+    .status-chip[data-state="ok"] .dot { background: #3dce74; }
+    .status-chip[data-state="warn"] .dot { background: #ffb020; }
+
+    .stage {
+      width: min(44rem, calc(100% - 2rem));
+      margin: 1.25rem auto 0;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .chat-card {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      min-height: 28rem;
+      height: min(40rem, calc(100vh - 11rem));
+      display: flex;
+      flex-direction: column;
+    }
+
+    #mindset-wrapper {
+      flex: 1;
+      min-height: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    #mindset-wrapper[data-handoff-hidden] {
+      visibility: hidden;
+      opacity: 0;
+      pointer-events: none;
+      height: 0;
+      flex: 0;
+    }
+
+    mindset-agent {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #fff;
+    }
+
+    #live-placeholder {
+      display: none;
+      flex: 1;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2rem 1.5rem;
+      color: var(--muted);
+    }
+
+    .stage:has(#mindset-wrapper[data-handoff-hidden]) #live-placeholder {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    #live-placeholder strong {
+      color: var(--ink);
+      font-size: 1.05rem;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.85rem 0 1.4rem;
+    }
+
+    #manual-escalate {
+      border: 1px solid var(--line);
+      background: var(--paper);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 0.45rem 0.9rem;
+      font: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    #manual-escalate:hover:not(:disabled) {
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+
+    #manual-escalate:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .hint {
+      margin: 0;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    #status-panel {
+      display: none;
+      margin: 0 0 1.25rem;
+      padding: 0.85rem 1rem;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #f8fafc;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      color: var(--muted);
+    }
+
+    #status-panel.is-open { display: block; }
+    #status-panel[data-state="ok"] { background: var(--ok-bg); border-color: #b7e0c4; color: var(--ok); }
+    #status-panel[data-state="warn"] { display: block; background: var(--warn-bg); border-color: #f3d19e; color: var(--warn); }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true"></div>
+      <div>
+        <h1>Support</h1>
+        <p>Ask the assistant — a live agent is one handoff away</p>
+      </div>
+    </div>
+    <button type="button" class="status-chip" id="status-chip" data-state="warn" aria-expanded="false">
+      <span class="dot" aria-hidden="true"></span>
+      <span id="status-label">Starting…</span>
+    </button>
+  </header>
+
+  <main class="stage">
+    <div class="chat-card">
+      <div id="mindset-wrapper">
+        <mindset-agent
+          agentUid="HCwuUNFTkBSYIo0WvUlG"
+          style="width: 100%; height: 100%; display: block; background-color: #fff;">
+        </mindset-agent>
+      </div>
+      <div id="live-placeholder">
+        <strong>You are chatting with a live specialist</strong>
+        <span>The assistant will come back when that conversation ends.</span>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <button type="button" id="manual-escalate" disabled>
+        Talk to a live agent
+      </button>
+      <p class="hint">Demo handoff — Salesforce opens in its own chat window</p>
+    </div>
+
+    <div id="status-panel">Checking…</div>
+  </main>
+
+  <script src="https://mindset-prod4-usw-embedded-sdk-v3.web.app/mindset-sdk3.umd.js"></script>
+  <script src="./mindset-salesforce-handoff.js"></script>
+  <script>
+  (function () {
+    MindsetSalesforceHandoff.init({
+      config: {
+        allowAgentSuppliedIdentity: true
+      }
+    });
+
+    if (typeof window.mindset !== 'undefined') {
+      window.mindset.init({
+        appUid: 'healthstream',
+        enableVoice: true
+      });
+    }
+
+    var panel = document.getElementById('status-panel');
+    var chip = document.getElementById('status-chip');
+    var label = document.getElementById('status-label');
+    var btn = document.getElementById('manual-escalate');
+    var panelOpen = false;
+
+    function tick(ok) { return ok ? '✓' : '✗'; }
+
+    function agentError(root, depth) {
+      if (!root || depth > 6) return null;
+      var text = root.textContent || '';
+      var m = text.match(/SDK_ERR_\d+/);
+      if (m) return m[0];
+
+      var kids = root.querySelectorAll ? root.querySelectorAll('*') : [];
+      for (var i = 0; i < kids.length; i++) {
+        if (kids[i].shadowRoot) {
+          var found = agentError(kids[i].shadowRoot, depth + 1);
+          if (found) return found;
+        }
+      }
+      return null;
+    }
+
+    var ERRORS = {
+      SDK_ERR_1005: 'Anonymous access is not enabled on the agent itself.',
+      SDK_ERR_1006: 'This page URL is not in the anonymous access safelist.'
+    };
+
+    function enhanceAgent(agentEl) {
+      if (!agentEl || agentEl.dataset.demoEnhanced) return;
+      agentEl.dataset.demoEnhanced = 'true';
+
+      var tries = 0;
+      var timer = setInterval(function () {
+        tries += 1;
+        var root = agentEl.shadowRoot;
+        if (root) {
+          if (!root.querySelector('style[data-demo-embed]')) {
+            var style = document.createElement('style');
+            style.setAttribute('data-demo-embed', 'true');
+            style.textContent = '.new-thread-button { display: none !important; }';
+            root.appendChild(style);
+          }
+          root.querySelectorAll('*').forEach(function (node) {
+            if (node.children.length === 0 && (node.textContent || '').trim() === 'Untitled thread') {
+              node.textContent = 'Support';
+            }
+          });
+        }
+        if (tries > 40) clearInterval(timer);
+      }, 150);
+    }
+
+    function refresh() {
+      var agentEl = document.querySelector('mindset-agent');
+      var sdk = (typeof window.mindset !== 'undefined');
+      var upgraded = !!(agentEl && typeof agentEl.setPageTools === 'function');
+      var boot = window.embeddedservice_bootstrap;
+      var sfReady = !!(boot && boot.utilAPI);
+      var configured = (agentEl && agentEl.getAttribute('agentUid') !== 'YOUR-AGENT-UID');
+      var err = agentEl ? (agentError(agentEl, 0) ||
+                           (agentEl.shadowRoot ? agentError(agentEl.shadowRoot, 0) : null)) : null;
+      var loaded = upgraded && !err;
+      var ok = sdk && loaded && sfReady;
+
+      if (agentEl) enhanceAgent(agentEl);
+
+      var lines = [
+        tick(sdk) + ' Mindset SDK script loaded',
+        tick(configured) + ' Mindset appUid / agentUid filled in',
+        tick(upgraded) + ' <mindset-agent> upgraded by the SDK',
+        tick(loaded) + ' Agent loaded without error',
+        tick(sfReady) + ' Salesforce Embedded Messaging ready'
+      ];
+
+      if (!sdk) {
+        lines.push('', 'The SDK script did not load. Check the network tab.');
+      } else if (err) {
+        lines.push('', err + ' — ' + (ERRORS[err] || 'See the agent panel.'));
+        if (err === 'SDK_ERR_1006') {
+          lines.push('', 'Safelist this origin as a full URL: ' + window.location.origin);
+        }
+      }
+
+      panel.textContent = lines.join('\n');
+      panel.setAttribute('data-state', ok ? 'ok' : 'warn');
+      panel.classList.toggle('is-open', panelOpen || !ok);
+      chip.setAttribute('data-state', ok ? 'ok' : 'warn');
+      chip.setAttribute('aria-expanded', panel.classList.contains('is-open') ? 'true' : 'false');
+      label.textContent = ok ? 'Ready' : (err || 'Starting…');
+
+      if (sfReady) btn.disabled = false;
+    }
+
+    chip.addEventListener('click', function () {
+      panelOpen = !panelOpen;
+      panel.classList.toggle('is-open', panelOpen || panel.getAttribute('data-state') === 'warn');
+      chip.setAttribute('aria-expanded', panel.classList.contains('is-open') ? 'true' : 'false');
+    });
+
+    refresh();
+    window.addEventListener('onEmbeddedMessagingReady', refresh);
+    setTimeout(refresh, 2000);
+    setTimeout(refresh, 6000);
+
+    btn.addEventListener('click', function () {
+      MindsetSalesforceHandoff.handoff({
+        summary: 'Manual test escalation from the beta page. No agent involved.',
+        reason: 'customer_requested',
+        firstName: 'Test',
+        lastName: 'Handoff',
+        email: 'test.handoff@example.com'
+      });
+    });
+  })();
+  </script>
+</body>
+</html>

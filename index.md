@@ -1,5 +1,14 @@
 # Mindset → Salesforce Messaging Beta
 
+**The live GitHub Pages demo is [`index.html`](./index.html)** —
+<https://hstmdave.github.io/Mindset---Messaging-Beta/>.
+
+This markdown file is the earlier Pages draft (and, in git history, Dave's
+original Embedded Messaging snippet). Keep it for reference; do not treat it
+as the running page.
+
+---
+
 Live test page. The Mindset agent is the only chat visible; when it decides the
 customer needs a human, it opens the Salesforce live chat and steps aside.
 
