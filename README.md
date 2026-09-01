@@ -166,10 +166,10 @@ supplies only the summary — see [Who supplies what](#who-supplies-what).
 
 ### 1. Salesforce
 
-See `SALESFORCE-SETUP.md`. The short version: two new Custom Parameters
-(`Mindset_Summary`, `Escalation_Reason`) plus matching Messaging Session fields
-must be created, or the AI context arrives empty and you have gained nothing over
-a plain chat button.
+See `SALESFORCE-SETUP.md`. Dave's live Channel Variables are
+`External_Conversation_Id`, `PreChat_URL`, `First_Name`, `Last_Name`, and
+`User_Email`. Further fields (summary, reason, whatever CustEx wants mapped)
+wait on Setup — unregistered names are dropped silently.
 
 ### 2. Mindset
 
@@ -216,7 +216,10 @@ The policy only works because the page tool exists.
    anything. At that point there is no summary to send. Setting them immediately
    before `launchChat()` is what makes carrying real AI context possible.
 
-3. **Two extra fields** — `Mindset_Summary` and `Escalation_Reason`.
+3. **Only Dave's five Channel Variables are sent today** —
+   `External_Conversation_Id`, `PreChat_URL`, `First_Name`, `Last_Name`,
+   `User_Email`. `Mindset_Summary` / `Escalation_Reason` stay `null` until
+   CustEx registers them.
 
 ---
 

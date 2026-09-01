@@ -65,7 +65,8 @@ Whichever this org enforces, both are quick.
 
 **Setup → Object Manager → Messaging Session → Fields & Relationships**
 
-The deployment already expects these (they appear in `index.md`):
+Dave confirmed these five Channel Variable names on `Mindset_Messaging_Beta`
+(they appear in his bootstrap snippet and in `index.md`):
 
 | Field | Type | Purpose |
 |---|---|---|
@@ -75,9 +76,11 @@ The deployment already expects these (they appear in `index.md`):
 | `User_Email__c` | Email | Customer identity from the host app |
 | `PreChat_URL__c` | URL | Which page the customer escalated from |
 
-**These two are new and do not exist yet.** They are the reason for doing any of
-this — without them the representative gets a chat with a name on it and no idea
-what the customer already tried:
+**These two are not in Dave's snippet and are not registered yet.** He noted
+CustEx will want more mappings later. Until they exist as Custom Parameters,
+the JS sends `null` for them so Salesforce does not silently drop unknown names.
+They are the reason a handoff is more useful than a plain chat button — without
+them the representative gets a name and no idea what the customer already tried:
 
 | Field | Type | Purpose |
 |---|---|---|

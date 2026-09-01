@@ -51,6 +51,9 @@
     // Salesforce Setup, and they are CASE-SENSITIVE. A name that does not match
     // a registered Custom Parameter is dropped silently -- no error, the Flow
     // variable just arrives empty. See SALESFORCE-SETUP.md.
+    //
+    // Source of truth: Dave's Mindset_Messaging_Beta snippet (the five keys
+    // below). Extra mappings wait on CustEx.
     prechatFields: {
       conversationId: 'External_Conversation_Id',
       pageUrl: 'PreChat_URL',
@@ -58,12 +61,10 @@
       lastName: 'Last_Name',
       email: 'User_Email',
 
-      // NOT YET REGISTERED IN SETUP. These two are the whole point of routing on
-      // AI context, but they do not exist in the deployment today. Register them
-      // as Custom Parameters + Messaging Session fields, or set them to null
-      // here so we do not send names Salesforce will discard.
-      summary: 'Mindset_Summary',
-      reason: 'Escalation_Reason'
+      // Not in the live deployment. Leave null so we do not send names
+      // Salesforce will discard. Add them back when CustEx registers them.
+      summary: null,
+      reason: null
     },
 
     // When true, the escalation tool also accepts firstName / lastName / email
