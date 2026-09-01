@@ -101,12 +101,50 @@ the `/api/mindset/token` endpoint, so `fetchAuthentication` is not an option on
 this page — it uses anonymous access instead. Two things must be true in AMS or
 the agent will not load:
 
-1. **`hstmdave.github.io` safelisted for anonymous access.** Without it the SDK
-   fails with `SDK_ERR_1006`.
-2. **The agent set to Open access.** A Restricted agent with no accounts assigned
-   is reachable *only* through an agent session, and there is no backend here to
-   create one. This is the opposite of the recommended production default, and is
-   a property of this demo page, not a recommendation for the product build.
+1. **Anonymous access enabled on the agent.** Without it: `SDK_ERR_1005`. This is
+   the opposite of the recommended production default, and is a property of this
+   demo page, not a recommendation for the product build.
+2. **The page's origin in the safelist, written as a full absolute URL.**
+   Without it: `SDK_ERR_1006`.
+
+### The safelist entry must include the scheme
+
+`https://hstmdave.github.io` works. `hstmdave.github.io` does not.
+
+This is worth stating flatly because the failure is silent and the error message
+("URL not in anonymous access safelist/whitelist") suggests the entry is missing
+rather than malformed. Read out of the SDK bundle, the comparison is:
+
+```js
+static compareUrls(entry, pageUrl) {
+  try {
+    const a = new URL(entry), b = new URL(pageUrl);
+    if (a.protocol !== b.protocol) return false;
+    return a.hostname === b.hostname;
+  } catch { return false; }   // <-- a bare domain lands here
+}
+```
+
+Both sides go through `new URL()`. `new URL("hstmdave.github.io")` throws, the
+throw is swallowed by the `catch`, and the entry simply never matches anything.
+
+What follows from that:
+
+| Entry | Result |
+|---|---|
+| `https://hstmdave.github.io` | matches |
+| `https://hstmdave.github.io/Mindset---Messaging-Beta/` | matches — path is ignored |
+| `hstmdave.github.io` | never matches — `new URL()` throws |
+| `http://hstmdave.github.io` | never matches — protocol must be identical |
+| `https://*.github.io` | never matches — no wildcard support |
+
+Only protocol and hostname are compared, so one entry per origin covers every
+page on that origin. Subdomains need their own entries.
+
+**Diagnosing which of the two is wrong:** the error code distinguishes them.
+`SDK_ERR_1005` means the agent does not allow anonymous access at all;
+`SDK_ERR_1006` means it does, and the URL is what failed. Getting 1006 is
+therefore mildly good news — it means step 1 is already done.
 
 The real embedded build should create an agent session server-side and pass the
 `agentSessionUid` — noting that the SDK takes it in the `agentUid` attribute,

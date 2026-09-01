@@ -101,11 +101,14 @@ a summary to send. The previous inline snippet is preserved in git history.
       // static site cannot hold a Mindset API key or host a token endpoint.
       //
       // Anonymous access requires, in AMS:
-      //   1. hstmdave.github.io safelisted for anonymous access
+      //   1. the agent flagged to allow anonymous access
+      //      (otherwise: SDK_ERR_1005)
+      //   2. this page's origin in the safelist, written as a full absolute URL
+      //      WITH the scheme: https://hstmdave.github.io
+      //      A bare domain does not work. The SDK runs both the safelist entry
+      //      and the page URL through new URL(); a bare domain throws, the
+      //      throw is swallowed, and the entry silently never matches.
       //      (otherwise: SDK_ERR_1006)
-      //   2. the agent set to Open access — a Restricted agent with no accounts
-      //      is only reachable through an agent session, and there is no
-      //      backend here to create one
       //
       // The real embedded build should do the opposite: create an agent session
       // server-side and pass the agentSessionUid. Note the SDK takes that in the
@@ -121,6 +124,31 @@ a summary to send. The previous inline snippet is preserved in git history.
 
   function tick(ok) { return ok ? '✓' : '✗'; }
 
+  // The agent renders its failures inside its own shadow DOM, so "the custom
+  // element upgraded" and "the agent actually loaded" are different questions.
+  // Reporting only the first is how this panel managed to show four ticks while
+  // the page displayed an error card.
+  function agentError(root, depth) {
+    if (!root || depth > 6) return null;
+    var text = root.textContent || '';
+    var m = text.match(/SDK_ERR_\d+/);
+    if (m) return m[0];
+
+    var kids = root.querySelectorAll ? root.querySelectorAll('*') : [];
+    for (var i = 0; i < kids.length; i++) {
+      if (kids[i].shadowRoot) {
+        var found = agentError(kids[i].shadowRoot, depth + 1);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  var ERRORS = {
+    SDK_ERR_1005: 'Anonymous access is not enabled on the agent itself.',
+    SDK_ERR_1006: 'This page URL is not in the anonymous access safelist.'
+  };
+
   function refresh() {
     var agentEl = document.querySelector('mindset-agent');
     var sdk = (typeof window.mindset !== 'undefined');
@@ -129,10 +157,15 @@ a summary to send. The previous inline snippet is preserved in git history.
     var sfReady = !!(boot && boot.utilAPI);
     var configured = (agentEl && agentEl.getAttribute('agentUid') !== 'YOUR-AGENT-UID');
 
+    var err = agentEl ? (agentError(agentEl, 0) ||
+                         (agentEl.shadowRoot ? agentError(agentEl.shadowRoot, 0) : null)) : null;
+    var loaded = upgraded && !err;
+
     var lines = [
       tick(sdk) + ' Mindset SDK script loaded',
       tick(configured) + ' Mindset appUid / agentUid filled in',
       tick(upgraded) + ' <mindset-agent> upgraded by the SDK',
+      tick(loaded) + ' Agent loaded without error',
       tick(sfReady) + ' Salesforce Embedded Messaging ready'
     ];
 
@@ -140,16 +173,21 @@ a summary to send. The previous inline snippet is preserved in git history.
       lines.push('');
       lines.push('The SDK script did not load from');
       lines.push('mindset-prod4-usw-embedded-sdk-v3.web.app — check the network tab.');
-    } else if (!upgraded) {
+    } else if (err) {
       lines.push('');
-      lines.push('SDK loaded but the agent did not mount. The likeliest cause is');
-      lines.push('anonymous access: hstmdave.github.io must be safelisted in AMS');
-      lines.push('(otherwise SDK_ERR_1006), and the agent must be set to Open');
-      lines.push('access. Check the console for an SDK_ERR_ code.');
+      lines.push(err + ' — ' + (ERRORS[err] || 'See the agent panel below.'));
+      if (err === 'SDK_ERR_1006') {
+        lines.push('');
+        lines.push('The safelist entry must be a full absolute URL including the');
+        lines.push('scheme. A bare domain never matches, because the SDK parses');
+        lines.push('both sides with new URL() and a bare domain throws.');
+        lines.push('');
+        lines.push('  this page needs:  ' + window.location.origin);
+      }
     }
 
     panel.textContent = lines.join('\n');
-    panel.setAttribute('data-state', (sdk && upgraded && sfReady) ? 'ok' : 'warn');
+    panel.setAttribute('data-state', (sdk && loaded && sfReady) ? 'ok' : 'warn');
 
     if (sfReady) btn.disabled = false;
   }
