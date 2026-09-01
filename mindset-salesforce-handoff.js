@@ -10,7 +10,8 @@
  *      calls it when it decides the customer needs a human, passing a summary.
  *   3. The handler stamps the hidden pre-chat fields (identity from the host app,
  *      summary from the agent), launches the Salesforce chat, and hides Mindset.
- *   4. When the Salesforce conversation ends, Mindset comes back.
+ *   4. When the Salesforce session ends (rep or customer), Mindset comes back
+ *      and is told the shared External_Conversation_Id so it can follow up.
  *
  * Identity (name, email) comes from the HOST APP, never from the agent. An LLM
  * can hallucinate an email address; your session object cannot. The agent only
@@ -82,31 +83,32 @@
     debug: true
   };
 
-  // Salesforce lifecycle events. `onEmbeddedMessagingReady` is confirmed -- it is
-  // already used in index.md. The rest are best-guess names that could NOT be
-  // verified (developer.salesforce.com was returning 503 when this was written).
+  // Official Enhanced Chat events:
+  // https://developer.salesforce.com/docs/service/messaging-web/guide/event-listeners.html
   //
-  // Run with debug:true in the sandbox, escalate once, end the chat, and read the
-  // console. Whatever logs is real; delete the rest from these arrays.
+  // SessionStatusUpdate is what fires when the *rep* ends the session from the
+  // console -- ConversationClosed / WindowClosed only fire when the *customer*
+  // closes the widget. That mismatch is why Mindset used to stay hidden.
   var READY_EVENT = 'onEmbeddedMessagingReady';
-
-  var CONVERSATION_END_EVENTS = [
-    'onEmbeddedMessagingConversationEnded',
-    'onEmbeddedMessagingConversationClosed'
-  ];
+  var SESSION_STATUS_EVENT = 'onEmbeddedMessagingSessionStatusUpdate';
+  var CONVERSATION_STARTED_EVENT = 'onEmbeddedMessagingConversationStarted';
+  var CONVERSATION_CLOSED_EVENT = 'onEmbeddedMessagingConversationClosed';
+  var WINDOW_CLOSED_EVENT = 'onEmbeddedMessagingWindowClosed';
 
   var DEBUG_WATCH_EVENTS = [
-    'onEmbeddedMessagingReady',
+    READY_EVENT,
+    SESSION_STATUS_EVENT,
+    CONVERSATION_STARTED_EVENT,
+    CONVERSATION_CLOSED_EVENT,
+    WINDOW_CLOSED_EVENT,
     'onEmbeddedMessagingButtonCreated',
     'onEmbeddedMessagingButtonClicked',
     'onEmbeddedMessagingWindowMaximized',
     'onEmbeddedMessagingWindowMinimized',
     'onEmbeddedMessagingConversationOpened',
-    'onEmbeddedMessagingConversationStarted',
-    'onEmbeddedMessagingConversationEnded',
-    'onEmbeddedMessagingConversationClosed',
-    'onEmbeddedMessagingInviteAccepted',
-    'onEmbeddedMessagingInviteRejected'
+    'onEmbeddedMessagingConversationParticipantChanged',
+    'onEmbeddedMessagingInvitationAccepted',
+    'onEmbeddedMessagingInvitationRejected'
   ];
 
   // ---------------------------------------------------------------------------
@@ -117,8 +119,11 @@
     user: null,          // { firstName, lastName, email } from the host app
     getUser: null,       // optional () => user, for apps that resolve it late
     salesforceReady: null,
+    lifecycleAttached: false,
     handoffActive: false,
-    conversationId: null
+    conversationId: null,             // External_Conversation_Id we stamp
+    salesforceConversationId: null,   // Salesforce's own id, if the event fires
+    lastHandoff: null                 // what Mindset should read after return
   };
 
   function log() {
@@ -169,6 +174,7 @@
         resolve();
       }, { once: true });
 
+      attachLifecycleListeners();
       if (CONFIG.debug) attachDebugListeners();
 
       var script = document.createElement('script');
@@ -290,8 +296,9 @@
       })
       .then(function () {
         state.handoffActive = true;
+        state.lastHandoff = null;
         hideMindset();
-        listenForConversationEnd();
+        attachLifecycleListeners();
 
         log('Live agent chat launched. conversationId =', state.conversationId);
 
@@ -316,20 +323,109 @@
       });
   }
 
-  var endListenersAttached = false;
+  function parseSessionStatus(event) {
+    var detail = event && event.detail;
+    if (!detail) return null;
 
-  function listenForConversationEnd() {
-    if (endListenersAttached) return;
-    endListenersAttached = true;
+    var entry = detail.conversationEntry || detail;
+    var raw = entry.entryPayload || entry.entry_payload;
+    var payload = detail;
 
-    CONVERSATION_END_EVENTS.forEach(function (name) {
-      global.addEventListener(name, function () {
-        if (!state.handoffActive) return;
-        log('Conversation ended via', name, '-- restoring Mindset');
-        state.handoffActive = false;
-        showMindset();
-      });
+    if (typeof raw === 'string') {
+      try {
+        payload = JSON.parse(raw);
+      } catch (err) {
+        payload = entry;
+      }
+    } else if (raw && typeof raw === 'object') {
+      payload = raw;
+    }
+
+    return {
+      sessionStatus: payload.sessionStatus || payload.session_status || payload.status || null,
+      sessionStatusPrev: payload.sessionStatusPrev || payload.session_status_prev || null,
+      sessionEndedByRole: payload.sessionEndedByRole || payload.session_ended_by_role || null
+    };
+  }
+
+  function attachLifecycleListeners() {
+    if (state.lifecycleAttached) return;
+    state.lifecycleAttached = true;
+
+    global.addEventListener(CONVERSATION_STARTED_EVENT, function (e) {
+      var id = e && e.detail && e.detail.conversationId;
+      if (id) {
+        state.salesforceConversationId = id;
+        log('Salesforce conversation started:', id);
+      }
     });
+
+    // Rep-ended session. This is the event that was missing -- Dave ending
+    // the chat from the console never fired ConversationClosed.
+    global.addEventListener(SESSION_STATUS_EVENT, function (e) {
+      var parsed = parseSessionStatus(e);
+      log('Session status update:', parsed);
+      if (!parsed) return;
+      var status = String(parsed.sessionStatus || '').toLowerCase();
+      if (status === 'ended') {
+        restoreFromLiveChat(SESSION_STATUS_EVENT, {
+          endedBy: parsed.sessionEndedByRole || 'unknown'
+        });
+      }
+    });
+
+    global.addEventListener(CONVERSATION_CLOSED_EVENT, function () {
+      restoreFromLiveChat(CONVERSATION_CLOSED_EVENT, { endedBy: 'EndUser' });
+    });
+
+    global.addEventListener(WINDOW_CLOSED_EVENT, function () {
+      restoreFromLiveChat(WINDOW_CLOSED_EVENT, { endedBy: 'EndUser' });
+    });
+  }
+
+  function restoreFromLiveChat(source, extras) {
+    extras = extras || {};
+    if (!state.handoffActive) return;
+
+    state.handoffActive = false;
+    showMindset();
+
+    state.lastHandoff = {
+      liveChatEnded: true,
+      externalConversationId: state.conversationId,
+      salesforceConversationId: state.salesforceConversationId,
+      endedBy: extras.endedBy || null,
+      endedVia: source,
+      endedAt: new Date().toISOString(),
+      note:
+        'The customer just finished a Salesforce live-agent chat. Call ' +
+        'get_handoff_result, then look up any Salesforce case whose ' +
+        'External_Conversation_Id matches externalConversationId. Do not ' +
+        'ask the customer for a case number you can retrieve this way.'
+    };
+
+    injectSituationalAwareness();
+    log('Restored Mindset after live chat via', source, state.lastHandoff);
+  }
+
+  function injectSituationalAwareness() {
+    var el = document.querySelector(CONFIG.mindset.agentSelector);
+    if (!el || typeof el.setSituationalAwareness !== 'function') {
+      warn('Cannot set situational awareness on <mindset-agent>.');
+      return;
+    }
+
+    var ctx = state.lastHandoff || {
+      liveChatEnded: false,
+      handoffActive: state.handoffActive,
+      externalConversationId: state.conversationId,
+      note:
+        'No live-agent chat has finished in this session. Use ' +
+        'escalate_to_live_agent when the customer needs a person.'
+    };
+
+    el.setSituationalAwareness(ctx);
+    log('Situational awareness set:', ctx);
   }
 
   // ---------------------------------------------------------------------------
@@ -433,10 +529,36 @@
         handler: function (args) {
           return handoff(args);
         }
+      },
+      {
+        name: 'get_handoff_result',
+        description:
+          'Read the result of the most recent Salesforce live-agent chat on ' +
+          'this page: whether it ended, who ended it, and the shared ' +
+          'External_Conversation_Id. Call this after the customer returns ' +
+          'from live chat, before asking what happened. Then search ' +
+          'Salesforce for a case with that External_Conversation_Id.',
+        runningDescription: 'Checking the live-chat handoff…',
+        completedDescription: 'Read the handoff result',
+        parameters: {
+          type: 'object',
+          properties: {}
+        },
+        handler: function () {
+          if (!state.lastHandoff) {
+            return {
+              liveChatEnded: false,
+              externalConversationId: state.conversationId,
+              message: 'No live-agent chat has finished in this session yet.'
+            };
+          }
+          return state.lastHandoff;
+        }
       }
     ]);
 
-    log('Page tool "escalate_to_live_agent" registered.');
+    injectSituationalAwareness();
+    log('Page tools escalate_to_live_agent and get_handoff_result registered.');
   }
 
   /**

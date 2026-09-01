@@ -29,7 +29,8 @@ Page load
   └─ Salesforce Embedded Messaging boots with hideChatButtonOnLoad = true
      (ready to go, nothing on screen)
   └─ Mindset agent renders — the only chat the customer sees
-  └─ On "mindset:agent-idle", escalate_to_live_agent is registered as a page tool
+  └─ On "mindset:agent-idle", escalate_to_live_agent and get_handoff_result
+     are registered as page tools
 
 Agent decides the customer needs a human
   └─ Calls escalate_to_live_agent({ summary, reason })
@@ -38,8 +39,12 @@ Agent decides the customer needs a human
      └─ Mindset widget hides
      └─ Routing data lands on the Messaging Session, Omni-Channel Flow routes it
 
-Live conversation ends
-  └─ Mindset widget returns, thread intact
+Live conversation ends (rep or customer)
+  └─ onEmbeddedMessagingSessionStatusUpdate (Ended) restores Mindset
+     when the rep ends the session from the console
+  └─ ConversationClosed / WindowClosed restore it when the customer closes
+  └─ setSituationalAwareness + get_handoff_result hand the agent the
+     External_Conversation_Id so it can look up the Salesforce case
 ```
 
 **No backend relay.** Salesforce renders its own chat window, so there is nothing
@@ -236,12 +241,13 @@ Marked honestly rather than presented as settled:
 | `siteUrl + /assets/js/bootstrap.min.js` | **Confirmed** — loads from the sandbox |
 | `settings.hideChatButtonOnLoad` | **Partly confirmed** — accepted as a settable property, reads back `true`. Whether it actually suppresses the launcher is still unproven (see CORS below). |
 | `boot.init(orgId, esDeveloperName, siteUrl, {scrt2URL})` | **Confirmed** — accepted without throwing |
-| `utilAPI.launchChat()` | **Unverified** — blocked by CORS |
-| `onEmbeddedMessagingConversationEnded` / `...Closed` | **Unverified** — name is a guess, blocked by CORS |
+| `utilAPI.launchChat()` | **Confirmed on Pages** — the live site opens the Salesforce chat |
+| `onEmbeddedMessagingSessionStatusUpdate` | **Documented** — `Ended` is what fires when the rep ends the session. Confirm in the console on the next live test. |
+| `onEmbeddedMessagingConversationClosed` | **Documented** — customer closes the conversation |
+| `onEmbeddedMessagingWindowClosed` | **Documented** — customer clicks X, or `clearSession` |
 
-The conversation-end event only controls whether the Mindset widget comes back
-after live chat, so a wrong name degrades gracefully rather than breaking the
-handoff.
+`onEmbeddedMessagingConversationEnded` is not a real event. The return path
+listens for SessionStatusUpdate + ConversationClosed + WindowClosed.
 
 ### Use `test-salesforce-only.html` to settle the rest
 
@@ -292,12 +298,11 @@ know which of the two this org actually enforces.
 
 ## Open questions
 
-- **Conversation correlation.** `External_Conversation_Id` is currently a UUID
-  generated in the browser at handoff. It correlates a Salesforce Messaging
-  Session to *an* escalation, but nothing on the Mindset side knows that UUID, so
-  you cannot yet join a Salesforce session back to its Mindset thread. If the
-  SDK exposes a thread or session identifier, use that instead — worth asking
-  Mindset CS.
+- **Conversation correlation.** `External_Conversation_Id` is a UUID generated
+  at handoff. After live chat ends, Mindset is told that id via situational
+  awareness and `get_handoff_result`. It still cannot *find a Case* by that id
+  until the value is stamped on the Case and `ww-sfmcp` can search it. A
+  Mindset thread uid would be a better stamp if the SDK exposes one.
 
 - **No agent available / off-hours.** Not handled. A queue with nobody on it does
   not fail, it waits indefinitely. Case creation as a fallback belongs in the

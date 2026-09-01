@@ -124,20 +124,22 @@
     language: 'en_US'
   };
 
-  // Candidate event names. Whatever logs green is real; the rest can be deleted
-  // from CONVERSATION_END_EVENTS in mindset-salesforce-handoff.js.
+  // Official Enhanced Chat events plus a few extras. SessionStatusUpdate is
+  // what fires when the rep ends the session from the console.
   var CANDIDATE_EVENTS = [
     'onEmbeddedMessagingReady',
+    'onEmbeddedMessagingSessionStatusUpdate',
+    'onEmbeddedMessagingConversationStarted',
+    'onEmbeddedMessagingConversationClosed',
+    'onEmbeddedMessagingWindowClosed',
     'onEmbeddedMessagingButtonCreated',
     'onEmbeddedMessagingButtonClicked',
     'onEmbeddedMessagingWindowMaximized',
     'onEmbeddedMessagingWindowMinimized',
     'onEmbeddedMessagingConversationOpened',
-    'onEmbeddedMessagingConversationStarted',
-    'onEmbeddedMessagingConversationEnded',
-    'onEmbeddedMessagingConversationClosed',
-    'onEmbeddedMessagingInviteAccepted',
-    'onEmbeddedMessagingInviteRejected'
+    'onEmbeddedMessagingConversationParticipantChanged',
+    'onEmbeddedMessagingInvitationAccepted',
+    'onEmbeddedMessagingInvitationRejected'
   ];
 
   var logEl = document.getElementById('log');
